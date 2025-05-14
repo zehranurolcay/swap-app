@@ -2,6 +2,8 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 
+import '../database/items.dart';
+import '../database/offers.dart';
 import '../widget/productDetailsSection.dart';
 import '../widget/recorded_data.dart';
 import 'package:http/http.dart' as http;
@@ -19,6 +21,7 @@ class _ProductDetailsPageState extends State<ProductDetailsPage> {
   int selectedImageIndex = 0;
   String? userId;
   bool isLoading = true;
+  int? selectedProductId;
 
   void initState() {
     super.initState();
@@ -33,6 +36,133 @@ class _ProductDetailsPageState extends State<ProductDetailsPage> {
       isLoading = false;
     });
   }
+
+  void _showPopup() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (BuildContext context) {
+        return FutureBuilder(
+          future: Future.wait([
+            fetchUserItems(userId.toString()),
+            fetchOffers(),
+          ]),
+          builder: (context, AsyncSnapshot<List<dynamic>> snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const Padding(
+                padding: EdgeInsets.all(32.0),
+                child: Center(child: CircularProgressIndicator()),
+              );
+            } else if (snapshot.hasError) {
+              return Padding(
+                padding: const EdgeInsets.all(32.0),
+                child: Text('Hata: ${snapshot.error}'),
+              );
+            }
+
+            List<Item> allUserItems = snapshot.data![0];
+            List<Offer> allOffers = snapshot.data![1];
+
+            Set<int> kullanilmisItemIds = {};
+
+            for (var offer in allOffers) {
+              if (offer.status.toLowerCase().trim() == "kabul edildi") {
+                kullanilmisItemIds.add(offer.itemId); // teklif edilen ürün
+                kullanilmisItemIds.add(offer.offered_item_id); // teklif eden ürün
+              }
+            }
+
+            List<Item> filteredItems = allUserItems
+                .where((item) => !kullanilmisItemIds.contains(item.itemId))
+                .toList();
+
+            if (filteredItems.isEmpty) {
+              return const Padding(
+                padding: EdgeInsets.all(32.0),
+                child: Text("Takas yapılabilir ürün bulunamadı."),
+              );
+            }
+
+            return StatefulBuilder(
+              builder: (BuildContext context, StateSetter setModalState) {
+                return Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Text(
+                        "Takas Yapacağın Ürünü Seç",
+                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.orange),
+                      ),
+                      const SizedBox(height: 16),
+                      ...filteredItems.map((item) {
+                        return RadioListTile<int>(
+                          title: Text(item.title),
+                          value: item.itemId,
+                          groupValue: selectedProductId,
+                          activeColor: Colors.orange,
+                          onChanged: (value) {
+                            setModalState(() {
+                              selectedProductId = value;
+                            });
+                          },
+                        );
+                      }).toList(),
+                      const SizedBox(height: 10),
+                      ElevatedButton(
+                        style: ButtonStyle(
+                          backgroundColor: MaterialStateProperty.all<Color>(Colors.pink),
+                        ),
+                        onPressed: () async {
+                          if (selectedProductId != null) {
+                            try {
+                              final response = await http.get(
+                                Uri.parse(
+                                  'http://10.0.2.2/api/add-offer?'
+                                      'offered_item_id=$selectedProductId'
+                                      '&user_id=${userId.toString()}'
+                                      '&item_id=${widget.product['itemId']}', // veya showPopup parametresiyle gelen ürün ID
+                                ),
+                              );
+
+                              if (response.statusCode == 200) {
+                                // Başarılı teklif
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(content: Text('Teklif gönderildi')),
+                                );
+                                Navigator.pop(context); // popup kapat
+                                setState(() {}); // sayfayı güncelle
+                              } else {
+                                throw Exception('Sunucu hatası: ${response.statusCode}');
+                              }
+                            } catch (e) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(content: Text('Hata oluştu: $e')),
+                              );
+                            }
+                          } else {
+                            ScaffoldMessenger.of(this.context).showSnackBar(
+                              const SnackBar(content: Text('Lütfen bir ürün seçin')),
+                            );
+                          }
+                        },
+                        child: const Text("Teklif Ver"),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            );
+          },
+        );
+      },
+    );
+  }
+
+
   @override
   Widget build(BuildContext context) {
     if (isLoading) {
@@ -228,10 +358,16 @@ class _ProductDetailsPageState extends State<ProductDetailsPage> {
               width: double.infinity,
               child: OutlinedButton.icon(
                 onPressed: () {
-                  // Takas teklifi işlemleri
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Takas teklifi gönderildi!')),
-                  );
+                  if (userId == "") {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text("Takas teklifi vermek için giriş yapmanız gerekiyor."),
+                        backgroundColor: Colors.red,
+                      ),
+                    );
+                  } else {
+                    _showPopup();
+                  }
                 },
                 style: OutlinedButton.styleFrom(
                   side: const BorderSide(color: Colors.orange),

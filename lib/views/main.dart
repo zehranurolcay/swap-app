@@ -15,7 +15,7 @@ class HomePage extends StatelessWidget {
         title: Row(
           children: [
             Text(
-              'swap',
+              'exchy',
               style: TextStyle(color: Colors.orange, fontWeight: FontWeight.bold),
             ),
             Spacer(),
