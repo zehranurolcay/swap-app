@@ -15,11 +15,11 @@ class HomePage extends StatelessWidget {
         title: Row(
           children: [
             Text(
-              'exchy',
+              'MOLLA',
               style: TextStyle(color: Colors.orange, fontWeight: FontWeight.bold),
             ),
             Spacer(),
-            Icon(Icons.search, color: Colors.grey),
+            Icon(Icons.shopping_cart, color: Colors.grey),
           ],
         ),
       ),
