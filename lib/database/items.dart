@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 import '../views/my_products.dart';
+import 'offers.dart';
 
 Future<List<Item>> fetchUserItems(String user_id) async {
   final response = await http.get(Uri.parse('http://10.0.2.2/api/items?user_id=$user_id'));
@@ -60,13 +61,28 @@ class Item {
 ///BÜTÜN ÜRÜNLER LİSTESİ ///
 Future<List<Product>> getUserAllItems(String userId) async {
   List<Item> dataList = await fetchUserItems(userId);
+  List<Offer> offerList = await fetchOffers();
   List<Product> itemList = [];
 
+  Set<String> acceptedItemIds = {};
+  for (var offer in offerList) {
+    if (offer.status.toLowerCase().trim() == "kabul edildi") {
+      acceptedItemIds.add(offer.itemId.toString());
+      acceptedItemIds.add(offer.offered_item_id.toString());
+    }
+  }
+
   for (var data in dataList) {
+
+    if (acceptedItemIds.contains(data.itemId.toString())) {
+      continue;
+    }
+
     itemList.add(Product(
       itemId: data.itemId.toString(),
       name: data.title,
       category: data.categoryName,
+      description: data.description,
       status: data.status,
       imageUrl: 'http://10.0.2.2/img/' + data.photo,
     ));

@@ -6,6 +6,8 @@ import '../database/items.dart';
 import '../widget/recorded_data.dart';
 import 'package:http/http.dart' as http;
 
+import 'edit_product_page.dart';
+
 class MyProductsPage extends StatefulWidget {
 
   @override
@@ -58,13 +60,21 @@ class _MyProductsPageState extends State<MyProductsPage> {
         itemBuilder: (context, index) {
           return ProductCard(
             product: products[index],
-            onEdit: () {
-              /*Navigator.push(
+            onEdit: () async {
+              final result = await Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (_) => ProductDetailPage(product: products[index]),
+                  builder: (_) => EditProductPage(products: products, productIndex: index,),
                 ),
-              );*/
+              );
+
+              if (result == true) {
+                setState(() {
+                  isLoading = true;
+                  products.clear();
+                });
+                await get_allItems(userId.toString());
+              }
             },
             onDelete: () {
               showDialog(
@@ -127,6 +137,7 @@ class Product {
   final String name;
   final String category;
   final String status;
+  final String description;
   final String imageUrl;
 
   Product({
@@ -134,6 +145,7 @@ class Product {
     required this.name,
     required this.category,
     required this.status,
+    required this.description,
     required this.imageUrl,
   });
 }
